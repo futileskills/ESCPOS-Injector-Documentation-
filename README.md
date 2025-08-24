@@ -1,7 +1,5 @@
 # ESC/POS Printer Command Injector
 
-**Abstract**
-
 This document provides in-depth technical documentation for the `esc_pos_printer_command_injector` Metasploit auxiliary module. It serves as a comprehensive resource for security researchers and penetration testers aiming to understand, utilize, and extend the module's capabilities. This guide includes a detailed explanation of the underlying ESC/POS protocol, a broad reference of common commands, and a complete user manual for the module, emphasizing its ethical use for vulnerability research and network auditing.
 
 ## 1. Project Overview
