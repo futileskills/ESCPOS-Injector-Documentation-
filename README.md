@@ -1,4 +1,4 @@
-# Comprehensive Documentation: ESC/POS Printer Command Injector
+# ESC/POS Printer Command Injector
 
 **Abstract**
 
