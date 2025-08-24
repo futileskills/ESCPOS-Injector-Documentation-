@@ -1,188 +1,132 @@
-Comprehensive Documentation: ESC/POS TCP Command Injector
+# Comprehensive Documentation: ESC/POS Printer Command Injector
 
-Overview
+**Abstract**
 
-This document provides an in-depth technical and functional analysis of the escpos_tcp_command_injector auxiliary module for the Metasploit Framework. This module capitalizes on a widespread security oversight in modern networked thermal and receipt printers: the direct exposure of the ESC/POS command port. This configuration, often a default setting for ease of deployment, bypasses authentication and allows for the arbitrary injection of command protocols over a standard TCP connection.
+This document provides in-depth technical documentation for the `esc_pos_printer_command_injector` Metasploit auxiliary module. It serves as a comprehensive resource for security researchers and penetration testers aiming to understand, utilize, and extend the module's capabilities. This guide includes a detailed explanation of the underlying ESC/POS protocol, a broad reference of common commands, and a complete user manual for the module, emphasizing its ethical use for vulnerability research and network auditing.
 
-The inherent vulnerability arises because many of these devices, critical components in retail, hospitality, and logistics, are designed to simply listen on a specific port (commonly TCP 9100) and execute any data received as a command. The absence of an authentication layer or access control list (ACL) on the printer's firmware means that any host on the same network—or even a public-facing IP if misconfigured—can issue commands, from printing unauthorized text to controlling mechanical peripherals. This document will serve as a definitive guide for researchers, system administrators, and developers to understand, test, and mitigate this vulnerability.
+## 1. Project Overview
 
-Vulnerable Applications and Manufacturers
+The `esc_pos_printer_command_injector` is a specialized tool designed to interact with networked receipt printers that use the ESC/POS command set. This module exploits a fundamental design flaw in these devices: the lack of authentication on the standard printing port (typically `9100`). By sending raw, unauthenticated commands, a user can manipulate the printer's physical and internal state, bypassing normal application-level controls.
 
-The escpos_tcp_command_injector is highly effective against a wide array of thermal and receipt printers that adhere to the ESC/POS protocol. While an exhaustive list is impractical, devices from the following manufacturers are known to be particularly susceptible if not properly secured:
+This project goes beyond a simple proof-of-concept. It is a robust and flexible tool for:
+* **Vulnerability Assessment:** Identifying misconfigured or legacy printers on a network.
+* **Protocol Analysis:** Understanding how specific commands and data sequences affect a printer's behavior.
+* **Physical Security Auditing:** Demonstrating how network access to a printer can lead to tangible, real-world impacts, such as triggering a cash drawer.
 
-Epson: A market leader in POS printers, many models in the TM-series (e.g., TM-T88, TM-T20, TM-L90) utilize the ESC/POS protocol. Their default network configurations frequently leave port 9100 open and unprotected.
+The module's design focuses on modularity, allowing for the easy addition of new features and command injections in the future.
 
-Star Micronics: Another prominent vendor, their TSP and FVP series printers often expose a similar command interface.
+## 2. Understanding the ESC/POS Protocol
 
-Seiko: Certain Seiko instruments are also vulnerable to this type of command injection.
+ESC/POS (Epson Standard Code for Printers) is a binary protocol, meaning it communicates using a series of non-printable control characters and data bytes. It is the de facto standard for controlling thermal and dot-matrix receipt printers.
 
-Generic/OEM Brands: A vast number of low-cost thermal printers sold under different brands are manufactured with the ESC/POS protocol as a base, and they rarely include robust network security features, making them prime targets.
+### Binary Communication
+Unlike text-based protocols like HTTP, where data is human-readable, ESC/POS commands are typically a sequence of hexadecimal values. The most important of these is the **Escape** character, represented by the hexadecimal value `\x1B`. This character acts as a command prefix. When the printer's firmware receives `\x1B`, it understands that the following bytes are not to be printed as text but should be interpreted as a specific command to perform an action.
 
-The primary characteristic of a vulnerable device is its operational simplicity: the firmware is designed to prioritize function over security, accepting raw data from any connected TCP stream as valid command input.
+### Command Structure
+A typical ESC/POS command sequence follows a simple pattern:
+`[Command Prefix]` + `[Command Byte]` + `[Optional Data]`
 
-In-Depth Background on the ESC/POS Protocol
+For example, to force a paper cut, a command sequence might be `\x1B\x69`. Here, `\x1B` is the prefix, and `\x69` is the command byte that tells the printer to cut the paper. The command may or may not be followed by a series of data bytes that provide additional parameters.
 
-ESC/POS (Epson Standard Code for Printers) is more than just a command set; it is a full-fledged printer control language. It operates by interpreting a sequence of binary codes and data sent to the device. These codes are divided into several categories:
+Another important command prefix is **Group Separator**, or `GS`, which has the hexadecimal value `\x1D`. `GS` commands are often used for more advanced features like printing barcodes or images.
 
-Control Codes: Non-printable characters that initiate a command, such as ESC (0x1B), GS (0x1D), and FS (0x1C).
+## 3. General List of ESC/POS Commands
 
-Printer Setting Commands: These control the fundamental state of the printer, like initializing it, setting the character font, and configuring the print head.
+This is a comprehensive reference of commands that can be used to interact with a wide range of ESC/POS compatible printers. This list is not exhaustive but covers the most common and useful commands for a security researcher.
 
-Print and Paper Commands: Instructions for printing characters, feeding paper, cutting the paper, and managing print queues.
+| Command | Hex | Description |
+| :--- | :--- | :--- |
+| **Printer Control Commands** | | |
+| `ESC @` | `1B 40` | Initializes the printer, clearing all buffer data and resetting all settings to their defaults. This is a crucial command to start a new print job cleanly. |
+| `ESC M n` | `1B 4D n` | Selects a character font. `n` can be `0` for Font A or `1` for Font B. |
+| `GS V \x01` | `1D 56 01` | **Full Cut:** Feeds paper to the cut position and performs a full cut. |
+| `ESC i` | `1B 69` | **Full Cut:** Another widely-used command for a full cut. |
+| `ESC d n` | `1B 64 n` | **Feed Lines:** Feeds `n` lines of paper. The value of `n` is specified as a single byte. For example, `ESC d \x05` feeds 5 lines. |
+| `ESC J n` | `1B 4A n` | **Feed Dots:** Feeds paper `n` dots. A more precise version of the line feed command. |
+| **Drawer Control Commands** | | |
+| `ESC p m t1 t2` | `1B 70 m t1 t2` | **Open Drawer:** Fires the pulse to open the cash drawer. `m` selects the drawer, and `t1` and `t2` define the pulse duration in milliseconds. |
+| **Text Formatting Commands** | | |
+| `ESC ! n` | `1B 21 n` | **Select Print Mode:** Enables various text attributes like bold, double-height, and double-width. `n` is a bit-flag value. For example, `\x08` for double-height, `\x10` for double-width. |
+| `ESC a n` | `1B 61 n` | **Justification:** Aligns the text. `n` can be `\x00` (left), `\x01` (center), or `\x02` (right). |
+| `ESC - n` | `1B 2D n` | **Underline Mode:** Turns underlining on or off. `n` can be `0` (off) or `1` (on). |
+| `ESC E n` | `1B 45 n` | **Bold Mode:** Turns bold printing on or off. `n` can be `0` (off) or `1` (on). |
+| **Barcode and Image Commands** | | |
+| `GS k m` | `1D 6B m` | **Print Barcode:** This is a complex command to print various types of 1D barcodes. `m` selects the barcode type. |
+| `GS ( k` | `1D 28 6B` | **Print 2D Barcode (QR Code):** Used for printing QR codes. This command requires additional data to specify the size and content of the code. |
+| `GS v 0` | `1D 76 30` | **Print Bit Image:** Prints a bit image (raster graphics). The data that follows specifies the image dimensions and pixel data. |
 
-Hardware Control Commands: Commands that interface with the printer's physical components, such as opening the cash drawer or activating a buzzer.
+## 4. Module Options and Usage
 
-A full ESC/POS payload is a meticulously crafted stream of these codes and associated data. The printer processes the stream sequentially, executing commands as it encounters them.
+This module is designed for use within the Metasploit Framework. To get started, load the module and set the necessary options.
 
-Deeper Look into the ESC/POS Protocol and Hex Commands
+### Module Configuration
+Run `show options` to see all available parameters:
+```bash
+msf6 > use auxiliary/scanner/misc/esc_pos_printer_command_injector
+msf6 auxiliary(scanner/misc/esc_pos_printer_command_injector) > show options
 
-Understanding the protocol at a hexadecimal level is crucial for crafting custom payloads beyond simple text. Every command is represented by a specific byte sequence.
+```
 
-Let's dissect the advanced example payload provided in the usage section:
+Key Options
 
-0x1B@ 0x1B!2 Hello World! 0x1D H 0x02 0x1D w 0x02 0x1D k 0x04 1234567
+    RHOSTS (Target IP): The IP address of the target printer. This is the only mandatory option.
 
-Command Breakdown
+    RPORT (Target Port): The port used for communication (default is 9100).
 
-0x1B@: This is the Initialize Printer command.
+    MESSAGE: The text string you want to print.
 
-Hex: 1B 40
+    PRINT_MESSAGE: A boolean flag to print the message.
 
-Function: ESC @
+    TRIGGER_DRAWER: A boolean flag to activate the cash drawer.
 
-Explanation: This command is typically sent at the start of a print job. It clears the print buffer, resets the print modes (font, alignment, etc.), and restores the printer to its power-on default state. It ensures that no lingering commands from a previous job interfere with the current one.
+    CUT_PAPER: A boolean flag to feed and cut the paper.
 
-0x1B!2: This is the Select Print Modes command.
+    FEED_LINES: An integer to specify how many lines to feed before cutting.
 
-Hex: 1B 21 02
+    DRAWER_COUNT: An integer to specify how many times to pulse the cash drawer.
 
-Function: ESC ! n
+Example Usage
 
-Explanation: This command sets a variety of print modes based on the value of the n parameter. In this case, 2 corresponds to a specific bit setting that enables double-height characters. The decimal value of n is a bitwise sum of different modes; for example, n=1 might enable bold, while n=2 enables double-height.
+Here are a few usage examples demonstrating the module's versatility:
 
-0x1D H 0x02: This command sets the position of the human-readable text for a barcode.
+Basic Message Injection
 
-Hex: 1D 48 02
+This will send a simple, sanitized message to the printer.
 
-Function: GS H n
+```
+msf6 > set RHOSTS 192.168.1.100
+msf6 > set PRINT_MESSAGE true
+msf6 > set MESSAGE "WARNING: PRINTER COMPROMISED"
+msf6 > run
+```
 
-Explanation: The GS H command controls where the text representation of the barcode data is printed. A value of 0x02 places the text above the barcode, while 0x00 places it below, and other values can hide it completely.
+Triggering the Cash Drawer
 
-0x1D w 0x02: This command sets the barcode width.
+This will send the cash drawer pulse command, with no other actions.
+```
+msf6 > set RHOSTS 192.168.1.100
+msf6 > set TRIGGER_DRAWER true
+msf6 > set DRAWER_COUNT 3
+msf6 > run
+```
+Full Receipt Simulation
 
-Hex: 1D 77 02
+This will print a message, feed the paper, and cut it, simulating a full receipt.
+Bash
+```
+msf6 > set RHOSTS 192.168.1.100
+msf6 > set PRINT_MESSAGE true
+msf6 > set MESSAGE "Audit complete. This device is vulnerable."
+msf6 > set CUT_PAPER true
+msf6 > set FEED_LINES 10
+msf6 > run
 
-Function: GS w n
+```
+5. Ethical Guidelines and Disclaimer
 
-Explanation: This command sets the module width of the barcode, which affects the overall width. A higher value for n results in a wider barcode. This is often used to make a barcode more readable by a scanner.
+This software is intended solely for educational, research, and authorized penetration testing purposes. It is a powerful tool for demonstrating the security risks associated with unauthenticated protocols in common IoT devices.
 
-0x1D k 0x04: This is the Print Barcode command.
+Under no circumstances should this tool be used on any network or device without explicit, written permission from the owner. Unauthorized use may be a violation of federal and local laws.
 
-Hex: 1D 6B 04
+The author and contributors of this module are not responsible for any misuse, damage, or legal consequences that may arise from its use. By using this software, you agree to assume all responsibility for your actions.
 
-Function: GS k m d1...dk NUL
-
-Explanation: This complex command has multiple parameters. The m parameter (0x04 in this case) specifies the barcode type (CODE39). The following data (1234567) is what will be encoded in the barcode, and the command is typically terminated by a NUL byte (0x00).
-
-Module Options and Configuration
-
-The module's behavior can be tailored using the following options, which are integrated with the Metasploit Framework's data store.
-
-RHOSTS: The IP address, range, or CIDR block of the network printer(s). This is the most critical option, as it specifies where the commands will be sent. The Msf::Exploit::Auxiliary::Scanner mixin handles the iteration over multiple targets.
-
-Example: set RHOSTS 192.168.1.100-192.168.1.200
-
-RPORT: The TCP port on which the printer's command interface is listening. The default port is 9100, which is the most common configuration for this type of device. The module's datastore defaults to this value.
-
-MESSAGE: A string of text to be sent to the printer for output. This can be a simple message, or it can be a carefully crafted string containing embedded hex commands. The module will convert this string into a raw byte stream.
-
-TRIGGER_DRAWER: A boolean option. When set to true, the module's payload construction logic will append the specific ESC/POS command for opening the cash drawer to the data being sent. This command is a hardcoded sequence of bytes that the printer's firmware understands.
-
-Advanced Usage Scenarios
-
-These examples provide a step-by-step guide on how to effectively use the module to achieve different objectives, with a focus on understanding the payload's content.
-
-Example 1: Printing a Simple Message
-
-To print a custom message, set the RHOSTS and MESSAGE options, then run the module. The module connects, sends the ASCII string, and disconnects.
-
-msf6 > use auxiliary/scanner/printer/escpos_tcp_command_injector
-msf6 auxiliary(scanner/printer/escpos_tcp_command_injector) > set RHOSTS 192.168.1.200
-msf6 auxiliary(scanner/printer/escpos_tcp_command_injector) > set MESSAGE "Hello from Metasploit!"
-msf6 auxiliary(scanner/printer/escpos_tcp_command_injector) > run
-
-
-Example 2: Remote Cash Drawer Trigger
-
-This scenario demonstrates the direct control this module can have over physical hardware. The module's code appends the specific drawer command to the payload.
-
-msf6 > use auxiliary/scanner/printer/escpos_tcp_command_injector
-msf6 auxiliary(scanner/printer/escpos_tcp_command_injector) > set RHOSTS 192.168.1.200
-msf6 auxiliary(scanner/printer/escpos_tcp_command_injector) > set TRIGGER_DRAWER true
-msf6 auxiliary(scanner/printer/escpos_tcp_command_injector) > run
-
-
-Example 3: Verifying Printer Connectivity
-
-Before running the module, you can use a simple port scanner like Nmap to confirm that the target printer's port 9100 is open and ready to accept connections. This step helps in troubleshooting.
-
-msf6 > nmap -p 9100 192.168.1.200
-Starting Nmap 7.92 ( https://nmap.org ) at 2025-08-21 08:08 CDT
-Nmap scan report for 192.168.1.200
-Host is up (0.002s latency).
-
-PORT     STATE SERVICE
-9100/tcp open  jetdirect
-
-Nmap done: 1 IP address (1 host up) scanned in 0.07 seconds
-
-
-Source Code Analysis
-
-The source code for this module is located within the metasploit-framework repository at /modules/auxiliary/scanner/printer/escpos_tcp_command_injector.rb.
-
-The core logic is contained within the run_host method, which is executed for each target specified in RHOSTS. This method performs the following actions:
-
-Connection: Establishes a TCP connection to the target host on RPORT using the connect helper method.
-
-Payload Construction: Builds the payload to be sent.
-
-It retrieves the MESSAGE from the module's datastore.
-
-If the TRIGGER_DRAWER option is set to true, it appends the hardcoded hex command for the cash drawer to the payload string.
-
-Command Injection: The final payload is transmitted to the printer using sock.put.
-
-Cleanup: The connection is closed, and a log entry is created to indicate the success or failure of the operation.
-
-This simple implementation highlights the lack of complexity required to exploit this vulnerability, as no multi-step handshake or authentication is needed.
-
-Network Traffic Analysis
-
-Capturing network traffic with a tool like Wireshark during the execution of this module provides a clear visual of the attack.
-
-TCP Stream: The traffic will appear as a straightforward TCP connection on port 9100.
-
-Payload Data: By following the TCP stream, a user can see the raw bytes being sent from the attacker's machine to the printer. The data will consist of ASCII characters for a simple message, but will also include the specific hex codes for commands. This provides irrefutable evidence of the command injection.
-
-For example, a payload containing Hello will be visible as the ASCII characters for 'H', 'e', 'l', 'l', 'o'. However, a command like 0x1B@ will be represented as its raw hex values 1B and 40.
-
-Defense and Mitigation
-
-To protect against this type of attack, network administrators should implement a multi-layered security strategy:
-
-Network Segmentation: The most effective mitigation is to place printers on a physically or logically isolated network segment, such as a dedicated VLAN. This prevents unauthorized hosts from even reaching the printer's command port.
-
-Firewall Rules: Implement strict firewall rules on all network edges and between VLANs. This ensures that only authorized hosts (e.g., the point-of-sale server) can communicate with the printer's specific ports. All other traffic should be denied by default.
-
-Authentication and Access Control: While not all printers support it, if the device's firmware offers any form of authentication or access control for its network services, it should be enabled and configured.
-
-Physical Security: Printers and cash drawers should be located in physically secure areas to prevent any unauthorized direct access or tampering.
-
-Firmware Updates: Regularly check for and apply firmware updates from the manufacturer. Some vendors may have released patches that disable or secure the default open ports.
-
-Principle of Least Privilege: Printers should only be connected to the network if absolutely necessary. If a printer can function with a direct connection to a single POS terminal, it should not be placed on the network at all.
-
-Legal and Ethical Considerations
-
-This module is intended for use in an authorized and controlled environment, such as a penetration testing engagement, a simulated lab, or for educational purposes. Unauthorized access to computer systems and devices is a crime in most jurisdictions. Always ensure you have explicit written permission from the system owner before using this tool. Using this module without proper authorization can lead to severe legal penalties.
