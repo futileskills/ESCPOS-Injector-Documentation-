@@ -59,13 +59,13 @@ This module is designed for use within the Metasploit Framework. To get started,
 
 ### Module Configuration
 Run `show options` to see all available parameters:
-```bash
+```
 msf6 > use auxiliary/scanner/misc/esc_pos_printer_command_injector
 msf6 auxiliary(scanner/misc/esc_pos_printer_command_injector) > show options
 
 ```
 
-Key Options
+**Key Options**
 
     RHOSTS (Target IP): The IP address of the target printer. This is the only mandatory option.
 
@@ -83,11 +83,11 @@ Key Options
 
     DRAWER_COUNT: An integer to specify how many times to pulse the cash drawer.
 
-Example Usage
+**Example Usage**
 
 Here are a few usage examples demonstrating the module's versatility:
 
-Basic Message Injection
+**Basic Message Injection**
 
 This will send a simple, sanitized message to the printer.
 
@@ -98,7 +98,7 @@ msf6 > set MESSAGE "WARNING: PRINTER COMPROMISED"
 msf6 > run
 ```
 
-Triggering the Cash Drawer
+**Triggering the Cash Drawer**
 
 This will send the cash drawer pulse command, with no other actions.
 ```
@@ -107,10 +107,9 @@ msf6 > set TRIGGER_DRAWER true
 msf6 > set DRAWER_COUNT 3
 msf6 > run
 ```
-Full Receipt Simulation
+**Full Receipt Simulation**
 
 This will print a message, feed the paper, and cut it, simulating a full receipt.
-Bash
 ```
 msf6 > set RHOSTS 192.168.1.100
 msf6 > set PRINT_MESSAGE true
