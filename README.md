@@ -141,7 +141,7 @@ You will pipe the output of `echo` directly to `netcat`, which then sends the ra
 
 #### Example Test Cases
 
-### Test 1: Print a Message
+#### Test 1: Print a Message
 
 This will initialize the printer, print a simple message, and then feed a few lines of paper to make it readable.
 
@@ -154,7 +154,7 @@ This will initialize the printer, print a simple message, and then feed a few li
 
 - \x0A is the newline character.
 
-### Test 2: Trigger the Cash Drawer
+####t 2: Trigger the Cash Drawer
 
 This sends the command to open a cash drawer connected to the printer's cash drawer port.
 
@@ -165,7 +165,7 @@ This sends the command to open a cash drawer connected to the printer's cash dra
 
 The \x00\x19\x19 bytes define the specific drawer and the pulse duration.
 
-### Test 3: Force a Paper Cut
+#### Test 3: Force a Paper Cut
 
 This sends the most common command to cut the paper. The printer will feed the paper to the cut position and then perform a full cut.
 
@@ -173,6 +173,16 @@ This sends the most common command to cut the paper. The printer will feed the p
 
 - \x1B\x69 is the command for a full paper cut.
 
+<br>
+<br>
+
+### Helpful Links 
+
+#### Epson Command Reference Revision 3.40
+- https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/index.html
+<br>
+<br>
+<br>
 
 ### 6. Ethical Guidelines and Disclaimer
 
