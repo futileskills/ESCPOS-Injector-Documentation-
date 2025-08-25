@@ -151,7 +151,7 @@ This will initialize the printer, print a simple message, and then feed a few li
 
 - \x0A is the newline character.
 
-####t 2: Trigger the Cash Drawer
+#### 2: Trigger the Cash Drawer
 
 This sends the command to open a cash drawer connected to the printer's cash drawer port.
 
