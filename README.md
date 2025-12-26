@@ -194,7 +194,7 @@ This sends the most common command to cut the paper. The printer will feed the p
 
 ### 6. Ethical Guidelines and Disclaimer
 
-This software is intended solely for educational, research, and authorized penetration testing purposes. It is a powerful tool for demonstrating the security risks associated with unauthenticated protocols in common IoT devices.
+This software is intended solely for educational, research, and authorized penetration testing purposes. 
 
 Under no circumstances should this tool be used on any network or device without explicit, written permission from the owner. Unauthorized use may be a violation of federal and local laws.
 
